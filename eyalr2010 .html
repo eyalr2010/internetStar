@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>אפליקציית חלקיקים גיאומטרית</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            transition: background-color 0.5s ease;
+            font-family: sans-serif;
+            color: white;
+        }
+        canvas {
+            display: block;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(50, 50, 50, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 200px;
+            z-index: 10;
+        }
+        #controls label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        #controls input[type="range"],
+        #controls input[type="color"],
+        #controls input[type="text"],
+        #controls select {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        #controls input[type="color"] {
+            height: 30px;
+            padding: 2px;
+            cursor: pointer;
+            border: none;
+        }
+        #controls button {
+            padding: 8px 12px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+        #controls button:hover {
+            background-color: #45a049;
+        }
+        @media (max-width: 600px) {
+            #controls {
+                top: auto;
+                bottom: 10px;
+                left: 50%;
+                transform: translateX(-50%);
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                max-width: 95%;
+                padding: 8px;
+            }
+            #controls > div {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                margin: 5px;
+            }
+            #controls label {
+                margin-bottom: 2px;
+                font-size: 0.8em;
+            }
+            #controls input, #controls select, #controls button {
+                font-size: 0.9em;
+            }
+            #controls input[type="range"]{
+                width: 80px;
+            }
+            #controls button {
+                padding: 5px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="particleCanvas"></canvas>
+
+    <div id="controls">
+        <div>
+            <label for="shapeSelect">בחר צורה:</label>
+            <select id="shapeSelect">
+                <option value="star" selected>כוכב</option>
+                <option value="heart">לב</option>
+                <option value="triangle">משולש</option>
+                <option value="square">ריבוע</option>
+                <option value="text">טקסט</option>
+                <option value="worm">זחל</option>
+            </select>
+        </div>
+        <div id="textInputDiv" style="display: none;">
+            <label for="textInput">הזן טקסט (קצר):</label>
+            <input type="text" id="textInput" value="TEST" maxlength="8">
+        </div>
+        <div>
+            <label for="particleSize">גודל נקודה: <span id="particleSizeValue">2</span></label>
+            <input type="range" id="particleSize" min="0.5" max="5" step="0.1" value="2">
+        </div>
+        <div>
+            <label for="bgColor">צבע רקע:</label>
+            <input type="color" id="bgColor" value="#000000">
+        </div>
+        <div>
+            <label for="particleColor">צבע נקודות (בסיס):</label>
+            <input type="color" id="particleColor" value="#00ffff"> </div>
+        <div>
+            <label for="mouseRadius">רדיוס עכבר: <span id="mouseRadiusValue">150</span></label>
+            <input type="range" id="mouseRadius" min="50" max="500" step="10" value="150">
+        </div>
+        <div>
+            <label for="numParticles">מס' נקודות: <span id="numParticlesValue">3000</span></label>
+            <input type="range" id="numParticles" min="500" max="10000" step="100" value="3000">
+            <button id="applyParticles">החל</button>
+        </div>
+        <div>
+            <label for="wormLength">אורך זחל: <span id="wormLengthValue">20</span></label>
+            <input type="range" id="wormLength" min="5" max="50" step="1" value="20">
+        </div>
+        <div>
+            <label for="trailLength">אורך עקבות (שניות): <span id="trailLengthValue">5</span></label>
+            <input type="range" id="trailLength" min="1" max="10" step="0.5" value="5">
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        // קונטרולים
+        const shapeSelect = document.getElementById('shapeSelect');
+        const particleSizeSlider = document.getElementById('particleSize');
+        const particleSizeValueSpan = document.getElementById('particleSizeValue');
+        const bgColorPicker = document.getElementById('bgColor');
+        const particleColorPicker = document.getElementById('particleColor');
+        const mouseRadiusSlider = document.getElementById('mouseRadius');
+        const mouseRadiusValueSpan = document.getElementById('mouseRadiusValue');
+        const numParticlesSlider = document.getElementById('numParticles');
+        const numParticlesValueSpan = document.getElementById('numParticlesValue');
+        const applyParticlesButton = document.getElementById('applyParticles');
+        const textInputDiv = document.getElementById('textInputDiv');
+        const textInput = document.getElementById('textInput');
+        const wormLengthSlider = document.getElementById('wormLength');
+        const wormLengthValueSpan = document.getElementById('wormLengthValue');
+        const trailLengthSlider = document.getElementById('trailLength');
+        const trailLengthValueSpan = document.getElementById('trailLengthValue');
+
+        // הגדרות גלובליות ניתנות לשינוי
+        let config = {
+            particleSize: 2,
+            baseParticleHue: 180,
+            backgroundColor: '#000000',
+            currentShape: 'star',
+            shapeScale: 0.3,
+            numberOfParticles: 3000,
+            text: 'TEST',
+            mouseRadius: 150,
+            attractionForce: 0.1,
+            repulsionForce: 1,
+            friction: 0.95,
+            wormLength: 20,
+            trailDuration: 5 // 5 שניות
+        };
+
+        let particlesArray = [];
+        let shapeVertices = [];
+        let shapeImageData = null;
+        let glowWorm = null;
+        let trailSegments = [];
+        let lastTrailTime = 0;
+        const trailInterval = 100; // מילישניות בין יצירת עקבות
+
+        // מחלקה לקטע בעקבות הזחל
+        class TrailSegment {
+            constructor(x, y, size, hue, createdAt) {
+                this.x = x;
+                this.y = y;
+                this.size = size;
+                this.hue = hue;
+                this.createdAt = createdAt;
+                this.lifespan = config.trailDuration * 1000; // מילישניות
+            }
+
+            draw(ctx, currentTime) {
+                const age = currentTime - this.createdAt;
+                if (age > this.lifespan) return false; // לא לצייר אם התיישן
+
+                const progress = age / this.lifespan;
+                const alpha = 1 - progress;
+                const currentSize = this.size * (1 - progress * 0.5);
+
+                ctx.fillStyle = `hsla(${this.hue}, 100%, 70%, ${alpha * 0.6})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, currentSize, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+
+                // הוספת הילה זוהרת
+                const gradient = ctx.createRadialGradient(
+                    this.x, this.y, 0,
+                    this.x, this.y, currentSize * 2
+                );
+                gradient.addColorStop(0, `hsla(${this.hue}, 100%, 70%, ${alpha * 0.4})`);
+                gradient.addColorStop(1, 'rgba(0,0,0,0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, currentSize * 2, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+
+                return true;
+            }
+        }
+
+        // מחלקה לקטע בזחל
+        class Segment {
+            constructor(x, y, size, color, index) {
+                this.x = x;
+                this.y = y;
+                this.targetX = x;
+                this.targetY = y;
+                this.size = size;
+                this.color = color;
+                this.index = index;
+                this.hue = Math.random() * 360;
+                this.speed = 0.1 + Math.random() * 0.2;
+            }
+
+            update(targetX, targetY) {
+                const dx = targetX - this.x;
+                const dy = targetY - this.y;
+                this.x += dx * this.speed;
+                this.y += dy * this.speed;
+
+                this.hue = (this.hue + 0.5) % 360;
+                this.color = `hsla(${this.hue}, 100%, 70%, 0.8)`;
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+
+                const gradient = ctx.createRadialGradient(
+                    this.x, this.y, 0,
+                    this.x, this.y, this.size * 2
+                );
+                gradient.addColorStop(0, this.color);
+                gradient.addColorStop(1, 'rgba(0,0,0,0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 2, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        // מחלקה לזחל זוהר
+        class GlowWorm {
+            constructor(length, headX, headY) {
+                this.segments = [];
+                this.length = length;
+                this.headX = headX;
+                this.headY = headY;
+                this.segmentSize = 8;
+                this.spacing = 15;
+
+                for (let i = 0; i < length; i++) {
+                    const size = this.segmentSize * (1 - i / (length * 1.5));
+                    const hue = (i * 10) % 360;
+                    const color = `hsla(${hue}, 100%, 70%, 0.8)`;
+                    this.segments.push(new Segment(headX, headY, size, color, i));
+                }
+            }
+
+            update(targetX, targetY, currentTime) {
+                this.headX = targetX;
+                this.headY = targetY;
+
+                // שמירת מיקום הזנב לפני העדכון
+                const tail = this.segments[this.segments.length - 1];
+                const prevTailX = tail.x;
+                const prevTailY = tail.y;
+
+                // עדכון הקטעים מהראש לזנב
+                let prevX = this.headX;
+                let prevY = this.headY;
+
+                for (let i = 0; i < this.segments.length; i++) {
+                    const segment = this.segments[i];
+                    const targetX = prevX;
+                    const targetY = prevY;
+                    
+                    segment.update(targetX, targetY);
+                    
+                    prevX = segment.x;
+                    prevY = segment.y;
+                }
+
+                // יצירת עקבות חדשות אם הזחל זז מספיק
+                if (currentTime - lastTrailTime > trailInterval) {
+                    const distanceMoved = Math.sqrt(
+                        Math.pow(tail.x - prevTailX, 2) + 
+                        Math.pow(tail.y - prevTailY, 2)
+                    );
+
+                    if (distanceMoved > 2) {
+                        trailSegments.push(new TrailSegment(
+                            tail.x, 
+                            tail.y, 
+                            tail.size, 
+                            tail.hue, 
+                            currentTime
+                        ));
+                        lastTrailTime = currentTime;
+                    }
+                }
+            }
+
+            draw(ctx) {
+                // ציור העקבות קודם (מאחור)
+                const currentTime = performance.now();
+                trailSegments = trailSegments.filter(segment => 
+                    segment.draw(ctx, currentTime)
+                );
+
+                // ציור הקטעים מהזנב לראש
+                for (let i = this.segments.length - 1; i >= 0; i--) {
+                    this.segments[i].draw(ctx);
+                }
+
+                // ציור קו מחבר
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(this.headX, this.headY);
+                
+                for (let i = 0; i < this.segments.length; i++) {
+                    const segment = this.segments[i];
+                    ctx.lineTo(segment.x, segment.y);
+                }
+                
+                ctx.stroke();
+            }
+        }
+
+        // התאמת גודל הקנבס לחלון
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            config.shapeScale = Math.min(canvas.width, canvas.height) * 0.3;
+            updateShapeAndParticles();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- הגדרות עכבר ---
+        const mouse = {
+            x: null,
+            y: null,
+            radius: config.mouseRadius
+        };
+
+        canvas.addEventListener('mousemove', (event) => {
+            mouse.x = event.clientX;
+            mouse.y = event.clientY;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+        canvas.addEventListener('touchmove', (event) => {
+            event.preventDefault();
+            if (event.touches.length > 0) {
+                mouse.x = event.touches[0].clientX;
+                mouse.y = event.touches[0].clientY;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', () => {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+        // --- פונקציות הגדרת צורות ---
+        function getStarPoints(centerX, centerY, outerRadius, innerRadius, points = 5) {
+            const angleStep = Math.PI / points;
+            const starPoints = [];
+            for (let i = 0; i < 2 * points; i++) {
+                const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                const angle = i * angleStep - Math.PI / 2;
+                const x = centerX + radius * Math.cos(angle);
+                const y = centerY + radius * Math.sin(angle);
+                starPoints.push({ x, y });
+            }
+            return starPoints;
+        }
+
+        function getHeartPoints(centerX, centerY, scale) {
+            const heartPoints = [];
+            const steps = 100;
+            for (let i = 0; i < steps; i++) {
+                const t = (i / steps) * 2 * Math.PI;
+                const x = centerX + scale * 1.6 * Math.pow(Math.sin(t), 3);
+                const y = centerY - scale * (1.3 * Math.cos(t) - 0.5 * Math.cos(2 * t) - 0.2 * Math.cos(3 * t) - 0.1 * Math.cos(4 * t));
+                heartPoints.push({ x, y });
+            }
+            return heartPoints;
+        }
+
+        function getTrianglePoints(centerX, centerY, scale) {
+            const trianglePoints = [];
+            const angleOffset = -Math.PI / 2;
+            for (let i = 0; i < 3; i++) {
+                const angle = angleOffset + (i * 2 * Math.PI / 3);
+                const x = centerX + scale * Math.cos(angle);
+                const y = centerY + scale * Math.sin(angle);
+                trianglePoints.push({ x, y });
+            }
+            return trianglePoints;
+        }
+
+        function getSquarePoints(centerX, centerY, scale) {
+            const halfSide = scale;
+            return [
+                { x: centerX + halfSide, y: centerY - halfSide },
+                { x: centerX - halfSide, y: centerY - halfSide },
+                { x: centerX - halfSide, y: centerY + halfSide },
+                { x: centerX + halfSide, y: centerY + halfSide }
+            ];
+        }
+
+        function getWormPoints(centerX, centerY, scale) {
+            // אין צורך בפונקציה זו כי הזחל מוגדר במחלקה נפרדת
+            return [];
+        }
+
+        function getTextData(text, centerX, centerY) {
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const fontSize = Math.min(canvas.width / (text.length || 1) * 0.8 , canvas.height * 0.5);
+            tempCtx.fillStyle = 'white';
+            tempCtx.font = `bold ${fontSize}px Arial`;
+            tempCtx.textAlign = 'center';
+            tempCtx.textBaseline = 'middle';
+            tempCtx.fillText(text, centerX, centerY);
+            shapeImageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            return shapeImageData;
+        }
+
+        function isPointInPolygon(pointX, pointY, polygonVertices) {
+            if (!polygonVertices || polygonVertices.length < 3) return false;
+            let isInside = false;
+            for (let i = 0, j = polygonVertices.length - 1; i < polygonVertices.length; j = i++) {
+                const xi = polygonVertices[i].x, yi = polygonVertices[i].y;
+                const xj = polygonVertices[j].x, yj = polygonVertices[j].y;
+                const intersect = ((yi > pointY) !== (yj > pointY))
+                    && (pointX < (xj - xi) * (pointY - yi) / (yj - yi) + xi);
+                if (intersect) isInside = !isInside;
+            }
+            return isInside;
+        }
+
+        function isPointInText(pointX, pointY, imageData) {
+            if (!imageData) return false;
+            const ix = Math.floor(pointX);
+            const iy = Math.floor(pointY);
+            if (ix < 0 || ix >= imageData.width || iy < 0 || iy >= imageData.height) {
+                return false;
+            }
+            const index = (iy * imageData.width + ix) * 4;
+            return imageData.data[index + 3] > 128;
+        }
+
+        // --- מחלקת חלקיק ---
+        class Particle {
+            constructor(originX, originY) {
+                this.originX = originX;
+                this.originY = originY;
+                this.x = originX + (Math.random() - 0.5) * 50;
+                this.y = originY + (Math.random() - 0.5) * 50;
+                this.size = config.particleSize;
+                const hue = config.baseParticleHue + Math.random() * 30 - 15;
+                const lightness = 70 + Math.random() * 20;
+                this.color = `hsl(${hue % 360}, 100%, ${lightness}%)`;
+                this.density = (Math.random() * 20) + 10;
+                this.vx = 0;
+                this.vy = 0;
+            }
+
+            draw() {
+                this.size = config.particleSize;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            update() {
+                let dxMouse = mouse.x - this.x;
+                let dyMouse = mouse.y - this.y;
+                let distMouseSq = dxMouse * dxMouse + dyMouse * dyMouse;
+                let mouseRadiusSq = mouse.radius * mouse.radius;
+
+                let forceX = 0;
+                let forceY = 0;
+
+                if (distMouseSq < mouseRadiusSq && mouse.x !== null) {
+                    const distMouse = Math.sqrt(distMouseSq);
+                    const force = (mouse.radius - distMouse) / mouse.radius;
+                    const moveX = (dxMouse / distMouse) * force * this.density * config.repulsionForce;
+                    const moveY = (dyMouse / distMouse) * force * this.density * config.repulsionForce;
+                    forceX -= moveX;
+                    forceY -= moveY;
+                }
+
+                let dxOrigin = this.originX - this.x;
+                let dyOrigin = this.originY - this.y;
+                let distOriginSq = dxOrigin * dxOrigin + dyOrigin * dyOrigin;
+
+                if (distOriginSq > 1) {
+                    const distOrigin = Math.sqrt(distOriginSq);
+                    const attraction = Math.min(distOrigin, 50) / 50;
+                    forceX += dxOrigin * config.attractionForce * attraction;
+                    forceY += dyOrigin * config.attractionForce * attraction;
+                }
+
+                this.vx = (this.vx + forceX) * config.friction;
+                this.vy = (this.vy + forceY) * config.friction;
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < this.size) { this.x = this.size; this.vx *= -0.5; }
+                if (this.x > canvas.width - this.size) { this.x = canvas.width - this.size; this.vx *= -0.5; }
+                if (this.y < this.size) { this.y = this.size; this.vy *= -0.5; }
+                if (this.y > canvas.height - this.size) { this.y = canvas.height - this.size; this.vy *= -0.5; }
+            }
+        }
+
+        // --- יצירת חלקיקים ---
+        function initParticles() {
+            particlesArray = [];
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            let checkPointFunction;
+            let boundingBox;
+
+            if (config.currentShape === 'text') {
+                shapeImageData = getTextData(config.text, centerX, centerY);
+                checkPointFunction = (x, y) => isPointInText(x, y, shapeImageData);
+                boundingBox = { minX: 0, maxX: canvas.width, minY: 0, maxY: canvas.height };
+            } else if (config.currentShape === 'worm') {
+                // עבור זחל, לא ניצור חלקיקים - נשתמש רק בזחל
+                return;
+            } else {
+                shapeImageData = null;
+                checkPointFunction = (x, y) => isPointInPolygon(x, y, shapeVertices);
+                if (!shapeVertices || shapeVertices.length === 0) {
+                    console.error("Vertices not defined for shape:", config.currentShape); return;
+                }
+                boundingBox = {
+                    minX: Math.min(...shapeVertices.map(v => v.x)) - 10,
+                    maxX: Math.max(...shapeVertices.map(v => v.x)) + 10,
+                    minY: Math.min(...shapeVertices.map(v => v.y)) - 10,
+                    maxY: Math.max(...shapeVertices.map(v => v.y)) + 10
+                };
+                boundingBox.minX = Math.max(0, boundingBox.minX);
+                boundingBox.minY = Math.max(0, boundingBox.minY);
+                boundingBox.maxX = Math.min(canvas.width, boundingBox.maxX);
+                boundingBox.maxY = Math.min(canvas.height, boundingBox.maxY);
+            }
+
+            let attempts = 0;
+            const maxAttempts = config.numberOfParticles * 50;
+
+            while (particlesArray.length < config.numberOfParticles && attempts < maxAttempts) {
+                const randX = Math.random() * (boundingBox.maxX - boundingBox.minX) + boundingBox.minX;
+                const randY = Math.random() * (boundingBox.maxY - boundingBox.minY) + boundingBox.minY;
+                if (checkPointFunction(randX, randY)) {
+                    particlesArray.push(new Particle(randX, randY));
+                }
+                attempts++;
+            }
+            if (attempts >= maxAttempts && particlesArray.length < config.numberOfParticles) {
+                console.warn(`Could not generate all ${config.numberOfParticles} particles within ${maxAttempts} attempts for shape ${config.currentShape}. Generated: ${particlesArray.length}`);
+            }
+        }
+
+        // פונקציה לעדכון הצורה וליצירת חלקיקים מחדש
+        function updateShapeAndParticles() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const scale = config.shapeScale;
+
+            shapeVertices = [];
+            textInputDiv.style.display = 'none';
+
+            switch(config.currentShape) {
+                case 'heart':
+                    shapeVertices = getHeartPoints(centerX, centerY, scale * 0.9);
+                    break;
+                case 'triangle':
+                    shapeVertices = getTrianglePoints(centerX, centerY, scale);
+                    break;
+                case 'square':
+                    shapeVertices = getSquarePoints(centerX, centerY, scale);
+                    break;
+                case 'text':
+                    textInputDiv.style.display = 'block';
+                    break;
+                case 'worm':
+                    // אין צורך ב-vertices עבור זחל
+                    break;
+                case 'star':
+                default:
+                    shapeVertices = getStarPoints(centerX, centerY, scale, scale * 0.4);
+                    break;
+            }
+            
+            if (config.currentShape !== 'worm') {
+                initParticles();
+            } else {
+                particlesArray = [];
+                if (mouse.x && mouse.y) {
+                    glowWorm = new GlowWorm(config.wormLength, mouse.x, mouse.y);
+                }
+            }
+        }
+
+        // --- לולאת אנימציה ---
+        function animate() {
+            ctx.fillStyle = config.backgroundColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < particlesArray.length; i++) {
+                particlesArray[i].update();
+                particlesArray[i].draw();
+            }
+
+            // עדכון וציור הזחל הזוהר אם מופעל
+            if (config.currentShape === 'worm' && mouse.x !== null && mouse.y !== null) {
+                if (!glowWorm || glowWorm.length !== config.wormLength) {
+                    glowWorm = new GlowWorm(config.wormLength, mouse.x, mouse.y);
+                }
+                glowWorm.update(mouse.x, mouse.y, performance.now());
+                glowWorm.draw(ctx);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- מאזיני אירועים לקונטרולים ---
+        shapeSelect.addEventListener('change', (e) => {
+            config.currentShape = e.target.value;
+            updateShapeAndParticles();
+        });
+
+        textInput.addEventListener('input', (e) => {
+            config.text = e.target.value.toUpperCase() || " ";
+            if (config.currentShape === 'text') {
+                updateShapeAndParticles();
+            }
+        });
+
+        particleSizeSlider.addEventListener('input', (e) => {
+            config.particleSize = parseFloat(e.target.value);
+            particleSizeValueSpan.textContent = config.particleSize.toFixed(1);
+        });
+
+        bgColorPicker.addEventListener('input', (e) => {
+            config.backgroundColor = e.target.value;
+        });
+
+        particleColorPicker.addEventListener('input', (e) => {
+            const hex = e.target.value;
+            config.baseParticleHue = hexToHue(hex);
+
+            particlesArray.forEach(p => {
+                const hue = config.baseParticleHue + Math.random() * 30 - 15;
+                const lightness = 70 + Math.random() * 20;
+                p.color = `hsl(${hue % 360}, 100%, ${lightness}%)`;
+            });
+        });
+
+        mouseRadiusSlider.addEventListener('input', (e) => {
+            config.mouseRadius = parseInt(e.target.value);
+            mouse.radius = config.mouseRadius;
+            mouseRadiusValueSpan.textContent = config.mouseRadius;
+        });
+
+        numParticlesSlider.addEventListener('input', (e) => {
+            numParticlesValueSpan.textContent = e.target.value;
+        });
+
+        applyParticlesButton.addEventListener('click', () => {
+            config.numberOfParticles = parseInt(numParticlesSlider.value);
+            numParticlesValueSpan.textContent = config.numberOfParticles;
+            updateShapeAndParticles();
+        });
+
+        wormLengthSlider.addEventListener('input', (e) => {
+            config.wormLength = parseInt(e.target.value);
+            wormLengthValueSpan.textContent = config.wormLength;
+            if (config.currentShape === 'worm') {
+                updateShapeAndParticles();
+            }
+        });
+
+        trailLengthSlider.addEventListener('input', (e) => {
+            config.trailDuration = parseFloat(e.target.value);
+            trailLengthValueSpan.textContent = config.trailDuration;
+        });
+
+        // --- פונקציות עזר המרה צבע ---
+        function hexToHue(hex) {
+            const rgb = parseInt(hex.substring(1), 16);
+            const r = ((rgb >> 16) & 255) / 255;
+            const g = ((rgb >> 8) & 255) / 255;
+            const b = ((rgb >> 0) & 255) / 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h = 0;
+            if (max !== min) {
+                const d = max - min;
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+            return h * 360;
+        }
+
+        function hslToHex(h, s, l) {
+            l /= 100;
+            const a = s * Math.min(l, 1 - l) / 100;
+            const f = n => {
+                const k = (n + h / 30) % 12;
+                const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                return Math.round(255 * color).toString(16).padStart(2, '0');
+            };
+            return `#${f(0)}${f(8)}${f(4)}`;
+        }
+
+        // --- אתחול ראשוני ---
+        function initializeApp() {
+            particleSizeSlider.value = config.particleSize;
+            particleSizeValueSpan.textContent = config.particleSize.toFixed(1);
+            bgColorPicker.value = config.backgroundColor;
+            particleColorPicker.value = hslToHex(config.baseParticleHue, 100, 50);
+            mouseRadiusSlider.value = config.mouseRadius;
+            mouseRadiusValueSpan.textContent = config.mouseRadius;
+            numParticlesSlider.value = config.numberOfParticles;
+            numParticlesValueSpan.textContent = config.numberOfParticles;
+            textInput.value = config.text;
+            wormLengthSlider.value = config.wormLength;
+            wormLengthValueSpan.textContent = config.wormLength;
+            trailLengthSlider.value = config.trailDuration;
+            trailLengthValueSpan.textContent = config.trailDuration;
+
+            resizeCanvas();
+            animate();
+        }
+
+        initializeApp();
+    </script>
+</body>
+</html>
